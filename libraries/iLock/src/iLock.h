@@ -148,6 +148,7 @@ public:
 	const State GetLeverState() { return _leverState; }
 };
 
+typedef void (*LockChangedFunc)(LockingId, bool);
 // Parent class of all locking mechanisms, manages faults and instantiation of mechanisms.
 // LockingIds are not unqiue across interlocking instances.
 class Interlocking
@@ -162,6 +163,9 @@ private:
 	int _countFaulted = 0;
 	Locking _faultLock;
 	LockingId _nextId = 1;
+
+	//! Callback function for when a lock state changes
+	LockChangedFunc _onLockChange = nullptr;
 
 public:
 	Interlocking() :
@@ -185,6 +189,12 @@ public:
 
 	//! Get all lockings
 	Vector<LockingId> GetAllLockings();
+
+	//! Set locking function callback
+	void OnLockChange(LockChangedFunc func) { _onLockChange = func; }
+
+	//! Invoke lock change callback
+	void LockChange(LockingId id, bool locked);
 };
 
 } // namespace ilock

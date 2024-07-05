@@ -122,14 +122,17 @@ public:
 	char* GetCharArray() const { return (char*)bytes; }
 };
 
+typedef byte DeviceId;
+typedef byte SlotId;
+
 //! Holds an ID for I2C bus slot
 #define MAX_I2C_ADDR	127
 struct DeviceSlot
 {
 	// I2C address of device
-	byte address;
+	DeviceId address;
 	// Slot on device
-	byte slot;
+	SlotId slot;
 
 	int FlatId() const { return address * MAX_I2C_ADDR + slot; }
 

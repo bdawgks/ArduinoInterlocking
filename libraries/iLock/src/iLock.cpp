@@ -89,7 +89,7 @@ void Locking::SetLock(const LockingId lid, const LockingRule rule)
 
 void Locking::WithdrawLock(const LockingId lid)
 {
-	if (_lockingRules[lid]._lockedBy = Unlocked)
+	if (_lockingRules[lid]._lockedBy == Unlocked)
 		return;
 
 	InitLockRule(lid);
@@ -99,6 +99,7 @@ void Locking::WithdrawLock(const LockingId lid)
 
 void Locking::UpdateLockStatus()
 {
+	bool _prevIsLocked = _isLocked;
 	_isLocked = false;
 	_curLockedBy.clear();
 	for (auto it = _lockingRules.begin(); it != _lockingRules.end(); it++)
@@ -108,6 +109,13 @@ void Locking::UpdateLockStatus()
 			_isLocked = true;
 			_curLockedBy.push_back(it->first);
 		}
+	}
+
+	// Invoke callback
+	if ((_isLocked && !_prevIsLocked) ||
+		(!_isLocked && _prevIsLocked))
+	{
+		_interlocking->LockChange(_lid, _isLocked);
 	}
 }
 
@@ -277,6 +285,12 @@ Vector<LockingId> Interlocking::GetAllLockings()
 		ids.push_back(it->first);
 	}
 	return ids;
+}
+
+void Interlocking::LockChange(LockingId id, bool locked)
+{
+	if (_onLockChange)
+		_onLockChange(id, locked);
 }
 
 } // namespace ilock

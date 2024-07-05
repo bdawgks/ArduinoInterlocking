@@ -19,7 +19,7 @@ typedef byte SlotId;
 	XX(SetResponseType,1) \
 	XX(LeverStateUpdate,3) \
 	XX(LeverStateRequest,1) \
-	XX(LeverStateResponse,2)
+	XX(LeverStateResponse,3)
 
 #define MSG_ENUM(e,s) \
 	MT##e,
@@ -138,13 +138,15 @@ public:
 
 class MsgLeverStateResponse : public MessageBody
 {
+	DeviceId _address;
 	SlotId _slot;
 	LeverState _leverState;
 
 public:
 	MsgLeverStateResponse() : MessageBody(MTLeverStateResponse) {}
-	MsgLeverStateResponse(SlotId slot, LeverState state)
+	MsgLeverStateResponse(DeviceId address, SlotId slot, LeverState state)
 		: MessageBody(MTLeverStateResponse),
+		_address(address),
 		_slot(slot),
 		_leverState(state)
 	{}
@@ -153,6 +155,8 @@ public:
 	virtual bool Write(Buffer & buf) override;
 	virtual String ToString() override;
 
+	//! Get device address
+	DeviceId GetAddress() { return _address; }
 	//! Get slot on device
 	SlotId GetSlot() { return _slot; }
 	//! Get lever state
@@ -223,7 +227,7 @@ class MessageProcessor
 		if (_processEvents.find(type) != _processEvents.end())
 		{
 			//Serial.println("found a function callback");
-			Serial.println(msg.ToString());
+			//Serial.println(msg.ToString());
 			MessageProcessFunc<T>* func = static_cast<MessageProcessFunc<T>*>(_processEvents.at(type));
 			func->InvokeFunc(msg);
 		}

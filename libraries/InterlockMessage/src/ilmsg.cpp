@@ -68,6 +68,7 @@ String MsgLeverStateRequest::ToString()
 
 bool MsgLeverStateResponse::Read(Buffer& buf)
 {
+	_address = buf.Read();
 	_slot = buf.Read();
 	_leverState = (LeverState)buf.Read();
 	return true;
@@ -75,6 +76,7 @@ bool MsgLeverStateResponse::Read(Buffer& buf)
 
 bool MsgLeverStateResponse::Write(Buffer& buf)
 {
+	buf.Write(_address);
 	buf.Write(_slot);
 	buf.Write((byte)_leverState);
 	return true;
@@ -82,7 +84,7 @@ bool MsgLeverStateResponse::Write(Buffer& buf)
 
 String MsgLeverStateResponse::ToString()
 {
-	String str = "LeverStateResponse | slot:" + String(_slot) + ", lockState:" + String((int)_leverState);
+	String str = "LeverStateResponse | address:" + String(_address) + ", slot:" + String(_slot) + ", lockState : " + String((int)_leverState);
 	return str;
 }
 
@@ -179,6 +181,8 @@ void MessageProcessor::RequestResponse(DeviceId address, MessageBodyRequest& req
 	//Serial.println(requestMsg.ToString());
 
 	SendOutboundMessage(requestMsg, address);
+
+	delay(100);
 
 	int size = MessageSizes[responseType] + 1; // Need one additional byte for the header
 	if (size < 1)

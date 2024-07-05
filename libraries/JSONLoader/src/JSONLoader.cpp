@@ -29,8 +29,8 @@ JSONLoader::JSONLoader(DynamicJsonDocument& doc)
 			InterlockingData data = {};
 			data.actingLever = locks["Acting"].as<String>();
 			data.affectedLever = affectingName;
-			data.ruleOn = LockingRuleFromString(locks["Locking", "StateOn"].as<String>());
-			data.ruleOff = LockingRuleFromString(locks["Locking", "StateOff"].as<String>());
+			data.ruleOn = LockingRuleFromString(locks["Locking"]["StateOn"].as<String>());
+			data.ruleOff = LockingRuleFromString(locks["Locking"]["StateOff"].as<String>());
 			_interlockingData.push_back(data);
 		}
 	}

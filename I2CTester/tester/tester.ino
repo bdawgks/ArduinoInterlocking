@@ -1,66 +1,50 @@
 #include <ArxContainer.h>
 #include <CommonLib.h>
-#include <ilmsg.h>
 #include <Wire.h>
+#include <iLock.h>
 
 const int addr = 1;
 
-using ilmsg::MessageProcessor;
-using ilmsg::MsgLeverStateUpdate;
-using ilmsg::MsgLeverStateRequest;
-using ilmsg::MsgLeverStateResponse;
-using ilmsg::MessageType;
-using ilmsg::MessageProcessFunc;
-using ilmsg::ResponseGenerateFunc;
-
-MessageProcessor* msgProcessor;
-
+using LeverState = ilock::Lever::State;
 int nextSlotToSend = 0;
 
-void ProcessMessage(MsgLeverStateUpdate msg)
-{
-  Serial.println("got update msg");
-  Serial.println(msg.ToString());
-}
+constexpr unsigned int SlotCount = 6;
 
-void RequestLeverState(MsgLeverStateRequest msg)
+LeverState leverStates[SlotCount] =
 {
-  Serial.print("requested state of ");
-  Serial.println((int)msg.GetSlot());
-  nextSlotToSend = msg.GetSlot();
-}
+  LeverState::Normal,
+  LeverState::Normal,
+  LeverState::Normal,
+  LeverState::Normal,
+  LeverState::Normal,
+  LeverState::Normal
+};
 
-MsgLeverStateResponse GetLeverState()
+bool lockStates[SlotCount] =
 {
-  auto msg = MsgLeverStateResponse(nextSlotToSend, ilock::Lever::State::Reversed);
-  Serial.println("sending lever state");
-  Serial.println(msg.ToString());
-  return msg;
-}
+  false,
+  false,
+  false,
+  false,
+  false,
+  false
+};
 
 void ReceiveMessage(int size)
 {
-  msgProcessor->ReceiveMessage(size);
 }
 
 void RequestMessage()
 {
-  //Serial.println("response requested");
-  msgProcessor->RequestEvent();
+  for (int i = 0; i < SlotCount; i++)
+  {
+    Wire.write((byte)leverStates[i]);
+  }
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-
-  msgProcessor = new MessageProcessor();
-  auto stateUpdFunc = MessageProcessFunc<MsgLeverStateUpdate>(ProcessMessage);
-  auto stateRequestFunc = MessageProcessFunc<MsgLeverStateRequest>(RequestLeverState);
-  auto stateResponseFunc = ResponseGenerateFunc<MsgLeverStateResponse>(GetLeverState);
-
-  msgProcessor->OnMessage(MessageType::MTLeverStateUpdate, &stateUpdFunc);
-  msgProcessor->OnMessage(MessageType::MTLeverStateRequest, &stateRequestFunc);
-  msgProcessor->OnResponse(MessageType::MTLeverStateResponse, &stateResponseFunc);
 
   Wire.begin(addr);
 
@@ -69,4 +53,53 @@ void setup() {
 }
 
 void loop() {
+  if (Serial.available() > 0)
+  {
+    //Serial.println(F("reading data..."));
+    String input = Serial.readString();
+
+    input.trim();
+    String cmd = input.substring(0, input.indexOf(':'));
+    String args = input.substring(input.indexOf(':') + 1);
+    
+    //Serial.print(F("read command: "));
+    //Serial.print(cmd);
+    //Serial.print(F(", args: "));
+    //Serial.println(args);
+
+    if (cmd == "ThrowLever")
+    {
+      int slot = args.toInt();
+      if (slot < 0 || slot > 6)
+        return;
+
+      if (lockStates[slot])
+      {
+        Serial.print(F("lever locked: "));
+        Serial.println(slot);
+        return;
+      }
+
+      if (leverStates[slot] == LeverState::Normal)
+        leverStates[slot] = LeverState::Reversed;
+      else
+        leverStates[slot] = LeverState::Normal;
+
+      Serial.print(F("lever thrown: "));
+      Serial.println(slot);
+    }
+    if (cmd == "GetState")
+    {
+      int slot = args.toInt();
+      if (slot < 0 || slot > 6)
+        return;
+
+      Serial.print("slot ");
+      Serial.print(slot);
+      Serial.print(" state: ");
+      Serial.print((int)leverStates[slot]);
+      Serial.print(" locked: ");
+      Serial.println(lockStates[slot]);
+    }
+  }
 }
