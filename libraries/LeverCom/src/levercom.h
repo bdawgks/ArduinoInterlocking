@@ -23,6 +23,7 @@ using lib::DeviceSlot;
 using lib::Vector;
 
 using ilock::LockingId;
+using ilock::LockState;
 using LeverState = ilock::Lever::State;
 
 constexpr auto LeverStateDataSize = sizeof(LeverState);
@@ -46,6 +47,7 @@ struct LeverComBuffer
 struct LeverInfo
 {
 	LockingId lid;
+	LockState lockState;
 	LeverState currentState;
 	bool leverLocked;
 };

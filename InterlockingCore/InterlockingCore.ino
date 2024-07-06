@@ -1,35 +1,5 @@
-// Third part libraries
-#include <ArxContainer.h>
-#include <ArduinoJson.h>
-
-// Arduino libraries
-#include <SPI.h>
-#include <SD.h>
-#include <Wire.h>
-
-// Custom libraries
-#define STD_LIB
-#include <CommonLib.h>
-#include <iLock.h>
-#include <JSONLoader.h>
-#include <levercom.h>
-
-using DataLoader = JSONLoader::JSONLoader;
-using lib::Vector;
-using lib::DeviceId;
-using lib::SlotId;
-using lib::DeviceSlot;
-using ilock::Interlocking;
-using ilock::Locking;
-using ilock::LockingId;
-using levercom::LeverComManager;
-using LeverState = ilock::Lever::State;
-
-//! File name to look for config on SD card
-const String configFileName = "config.txt";
-
-//! Indicates a successful initialization (config loaded)
-bool initSuccessful = false;
+// Header for this file
+#include "core.h"
 
 //! Pointer to the interlocking class
 Interlocking* il = nullptr;
@@ -37,51 +7,27 @@ Interlocking* il = nullptr;
 //! I2C Message processor
 LeverComManager* leverManager;
 
-// Debug variables
-bool logLockingRules = true;
-
-enum ErrorCode
-{
-    Unknown,
-    MissingDataCard,
-    MissingConfig,
-    ConfigReadError,
-    JSONDeserializeError,
-    LeverNotFound,
-};
-
-//! Log error code and message
-void LogError(ErrorCode error, String msg)
-{
-    Serial.print(F("[ERROR] "));
-    Serial.print(error);
-    if (msg.isEmpty())
-    return;
-    Serial.print(F(": "));
-    Serial.println(msg);
-}
-
 // Loads data from the SD card config file
 DataLoader* LoadData()
 {
     if (!SD.begin(SDCARD_SS_PIN))
     {
-        LogError(MissingDataCard, F("no SD card detected"));
+        Log::Error(MissingDataCard, F("no SD card detected"));
         return nullptr;
     }
 
     // Check for config file
-    if (!SD.exists(configFileName))
+    if (!SD.exists(Glob::configFileName))
     {
-        LogError(MissingConfig, F("config file does not exist"));
+        Log::Error(MissingConfig, F("config file does not exist"));
         return nullptr;
     }
 
     // Try to open config file
-    File config = SD.open(configFileName);
+    File config = SD.open(Glob::configFileName);
     if (!config)
     {
-        LogError(ConfigReadError, F("error reading config file"));
+        Log::Error(ConfigReadError, F("error reading config file"));
         return nullptr;
     }
 
@@ -90,7 +36,7 @@ DataLoader* LoadData()
     DeserializationError err = deserializeJson(doc, config);
     if (err)
     {
-        LogError(JSONDeserializeError, "JSON deserialize error:" + String(err.c_str()));
+        Log::Error(JSONDeserializeError, "JSON deserialize error:" + String(err.c_str()));
         return nullptr;
     }
 
@@ -118,29 +64,18 @@ void InitInterlocking(DataLoader& loader)
         Locking* leverAffected = il->GetLocking(data.affectedLever);
         if (!leverActing)
         {
-            LogError(LeverNotFound, "locking \"" + data.actingLever + "\" not found");
+            Log::Error(LeverNotFound, "locking \"" + data.actingLever + "\" not found");
             continue;
         }
         if (!leverAffected)
         {
-            LogError(LeverNotFound, "locking \"" + data.affectedLever + "\" not found");
+            Log::Error(LeverNotFound, "locking \"" + data.affectedLever + "\" not found");
             continue;
         }
         leverActing->AddLockRule(ilock::LockState::On, leverAffected->GetId(), (ilock::LockingRule)(byte)data.ruleOn);
         leverActing->AddLockRule(ilock::LockState::Off, leverAffected->GetId(), (ilock::LockingRule)(byte)data.ruleOff);
 
-        if (logLockingRules)
-        {
-            Serial.print(F("[LOG] lock rule; lever "));
-            Serial.print(data.actingLever);
-            Serial.print(F(" sets lever "));
-            Serial.print(data.affectedLever);
-            Serial.print(F(" to state "));
-            Serial.print((byte)data.ruleOn);
-            Serial.print(F(" when ON, state "));
-            Serial.print(data.ruleOff);
-            Serial.println(F(" when OFF"));
-        }
+        Log::LockingRules(data);
     }
 
     // Initialize levr com buffers
@@ -159,13 +94,7 @@ void InitInterlocking(DataLoader& loader)
         Locking* lever = il->GetLocking(lid);
         leverManager->SetLeverLockState(lever->GetId(), lever->IsLocked());
 
-        if (logLockingRules)
-        {
-            Serial.print(F("[LOG] init state of lever "));
-            Serial.print(lever->GetName());
-            Serial.print(F(": "));
-            Serial.println(lever->IsLocked() ? F("LOCKED") : F("UNLOCKED"));
-        }
+        Log::LeverInitState(lever);
     }
 }
 
@@ -205,6 +134,10 @@ void setup()
         delay(10);
     }
 
+    // Print software version
+    Log::Version();
+
+    // Set up lever coms
     leverManager = new LeverComManager();
     leverManager->OnStateChanged(LeverStateChanged);
 
@@ -212,7 +145,7 @@ void setup()
     DataLoader* loader = LoadData();
     if (!loader)
     {
-        LogError(Unknown, F("loader pointer is null"));
+        Log::Error(Unknown, F("loader pointer is null"));
         return;
     }
 
@@ -224,14 +157,14 @@ void setup()
     Wire.begin();
 
     // Indicate successful init
-    initSuccessful = true;
-    Serial.println(F("[LOG] System initialized..."));
+    Glob::initSuccessful = true;
+    Log::Init();
 }
 
 void loop() 
 {
     // Do nothing if init failed
-    if (!initSuccessful)
+    if (!Glob::initSuccessful)
     return;
 
     // Do nothing if interlocking is null
@@ -248,7 +181,7 @@ void loop()
         str.trim();
         if (str == "ping")
         {
-            Serial.println(F("[LOG] System running..."));
+            Log::Ping();
         }
     }
 }
