@@ -60,6 +60,7 @@ class LeverComManager
 	MapComp<DeviceSlot, LeverInfo*, lib::DeviceSlotCompare> _info;
 	Map<DeviceId, LeverComBuffer*> _buffers;
 	StateChangedFunc _onStateChanged = nullptr;
+	bool _indicateLeverLocks = true;
 
 	//! Get expected number of bytes to read for a specific device
 	int GetResponseSize(DeviceId address);
@@ -90,6 +91,8 @@ public:
 	void SetLeverLockState(LockingId lid, bool locked);
 	//! Push lock state to all devices that require it
 	void PushLeverStates();
+	//! Set whether lock indication is on
+	void SetLeverLockIndication(bool on);
 };
 
 } // namespace levercom

@@ -6,6 +6,7 @@
 
 // Custom libraries
 #include "CommonLib.h"
+#include "ilmod.h"
 
 using lib::byte;
 using lib::Buffer;

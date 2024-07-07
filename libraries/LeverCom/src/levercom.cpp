@@ -153,16 +153,29 @@ void LeverComManager::PushLeverStates()
 		if (it->second->pushNeeded)
 		{
 			Wire.beginTransmission(address);
+			Wire.write(_indicateLeverLocks);
 			for (int slot = 0; slot < it->second->slotCount; slot++)
 			{
 				DeviceSlot dSlot = { address, slot };
-				bool locked = _info[dSlot]->leverLocked;
-				Wire.write(locked);
+				Wire.write((byte)_info[dSlot]->lockState);
+				Wire.write(_info[dSlot]->leverLocked);
 			}
 			Wire.endTransmission();
 		}
 		it->second->pushNeeded = false;
 	}
+}
+
+void LeverComManager::SetLeverLockIndication(bool on)
+{
+	if (on == _indicateLeverLocks)
+	{
+		for (auto it = _buffers.begin(); it != _buffers.end(); it++)
+		{
+			it->second->pushNeeded = true;
+		}
+	}
+	_indicateLeverLocks = on;
 }
 
 } // namespace levercom
