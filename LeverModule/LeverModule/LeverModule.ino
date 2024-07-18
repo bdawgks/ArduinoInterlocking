@@ -4,16 +4,16 @@ constexpr int SlotCount = 6;
 
 const int pinsIn[SlotCount] =
 {
-	2,3,4,5,6,7
+	12,11,10,87
 };
 const int pinsOut[SlotCount] =
 {
-	8,9,10,11,12,13
+	6,6,6,6,6,6
 };
 
-const int pinsAddr[7] =
+int pinsAddr[7] =
 {
-	0,1,14,15,16,17,7
+	26,27,28,29,24,25,18
 };
 
 constexpr unsigned long FlashFreq = 100;
@@ -95,13 +95,24 @@ void setup()
 	}
 
 	// Init I2C wire
-	Wire.begin(Glob::thisAddress);
-	Wire.onReceive(ReceiveMessage);
-	Wire.onRequest(RequestMessage);
+	if (Glob::thisAddress > 0)
+	{
+		Wire.begin(Glob::thisAddress);
+		Wire.onReceive(ReceiveMessage);
+		Wire.onRequest(RequestMessage);
+	}
+
+  Serial.begin(9600);
+  Serial.print("lever mod addr: ");
+  Serial.println(Glob::thisAddress);
 }
 
 void loop() 
 {
+	// If all address switches are off, disable this module
+	if (Glob::thisAddress == 0)
+		return;
+
 	// Update the phase of LED flashing
 	auto timeNow = millis();
 	auto timeElapsed = timeNow - Glob::timePrev;
@@ -115,6 +126,7 @@ void loop()
 	ProcessBuffer();
 
 	// Update lever status
+  //Serial.print("states");
 	for (int i = 0; i < SlotCount; i++)
 	{
 		// Update LED state
@@ -127,9 +139,15 @@ void loop()
 		digitalWrite(levers[i].GetPinOutput(), ledStatus);
 
 		// Update lever state
-		if (digitalRead(levers[i].GetPinInput()) == HIGH)
+		if (digitalRead(levers[i].GetPinInput()) == LOW)
 			levers[i].SetSlotState(Reversed);
 		else
 			levers[i].SetSlotState(Normal);
+
+    //Serial.print(" | lever ");
+    //Serial.print(i);
+    //Serial.print(" = ");
+    //Serial.print(levers[i].GetSlotState());
 	}
+  //Serial.println(";");
 }

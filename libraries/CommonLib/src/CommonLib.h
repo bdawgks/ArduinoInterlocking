@@ -6,6 +6,9 @@
 #pragma once
 
 #define ENV_ARDUINO 1
+#ifndef NO_STD_LIB
+#define STD_LIB
+#endif
 
 #if ENV_ARDUINO
 #if defined(ARDUINO) && ARDUINO >= 100
