@@ -4,7 +4,6 @@
 **/
 
 #include "ilmod.h"
-#include "wire.h"
 
 namespace ilmod
 {
@@ -20,20 +19,6 @@ byte ReadBitAddress(int pins[7], int onState)
 		address |= (set << i);
 	}
 	return (byte)address;
-}
-
-void ReadWireToBuffer(Buffer& buf, int size)
-{
-	// Grow the buffer if it's too small
-	if (size > buf.length)
-	{
-		buf.length = size;
-	}
-	buf.Reset();
-	while (Wire.available() > 0)
-	{
-		buf.Write(Wire.read());
-	}
 }
 
 } // namespace ilmod

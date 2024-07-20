@@ -1,11 +1,6 @@
-// Third party libraries
-#include <ArxContainer.h>
-
-// Arduino libraries
-#include <Wire.h>
-
 // Custom libraries
 #include "CommonLib.h"
+#include "ilmsg2.h"
 #include "ilmod.h"
 
 using lib::byte;
@@ -19,6 +14,7 @@ enum LeverState : byte
 
 class Lever
 {
+	int _slot;
 	LeverState _slotState;
 	LeverState _lockState;
 	bool _locked;
@@ -28,12 +24,12 @@ class Lever
 
 public:
 	Lever() {};
-	Lever(int pinSwitch, int pinLED);
+	Lever(int slot, int pinSwitch, int pinLED);
 
 	LeverState GetSlotState() { return _slotState; }
 	LeverState GetLockState() { return _lockState; }
 
-	void SetSlotState(LeverState state) { _slotState = state; }
+	void SetSlotState(LeverState state);
 	void SetLockState(LeverState state) { _lockState = state; }
 
 	bool IsFaulted() { return _slotState != _lockState; }

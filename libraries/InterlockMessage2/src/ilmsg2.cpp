@@ -46,6 +46,27 @@ void MessageBase::PackMessageId(CAN_Message& msg) const
 	msg.id = ((CAN_IdType)_mt << BitOffset(2)) | ((CAN_IdType)_destid << BitOffset(1)) | (CAN_IdType)_type;
 }
 
+void MessageRegister::PackMessage(CAN_Message& msg) const
+{
+	MessageBase::PackMessage(msg);
+	msg.data[0] = (can::DataType)did;
+	msg.data[1] = (can::DataType)mtype;
+
+	msg.dataSize = 1;
+}
+
+bool MessageRegister::UnpackMessage(const CAN_Message& msg)
+{
+	if (msg.dataSize != 2)
+		return false;
+
+	MessageBase::UnpackMessage(msg);
+	did = (DeviceId)msg.data[0];
+	mtype = (ModuleType)msg.data[1];
+
+	return true;
+}
+
 void MessageSetLeverState::PackMessage(CAN_Message& msg) const
 {
 	MessageBase::PackMessage(msg);
@@ -69,6 +90,55 @@ bool MessageSetLeverState::UnpackMessage(const CAN_Message& msg)
 	faulted = (bool)msg.data[3];
 
 	return true;
+}
+
+void MessageSetLockState::PackMessage(CAN_Message& msg) const
+{
+	MessageBase::PackMessage(msg);
+	msg.data[0] = (can::DataType)slot;
+	msg.data[1] = (can::DataType)state;
+	msg.data[2] = (can::DataType)locked;
+
+	msg.dataSize = 3;
+}
+
+bool MessageSetLockState::UnpackMessage(const CAN_Message& msg)
+{
+	if (msg.dataSize != 3)
+		return false;
+
+	MessageBase::UnpackMessage(msg);
+	slot = (SlotId)msg.data[0];
+	state = (LockState)msg.data[1];
+	locked = (bool)msg.data[2];
+
+	return true;
+}
+
+void MessageSetLockIndication::PackMessage(CAN_Message& msg) const
+{
+	MessageBase::PackMessage(msg);
+	msg.data[0] = (can::DataType)showIndication;
+
+	msg.dataSize = 1;
+}
+
+bool MessageSetLockIndication::UnpackMessage(const CAN_Message& msg)
+{
+	if (msg.dataSize != 1)
+		return false;
+
+	MessageBase::UnpackMessage(msg);
+	showIndication = (bool)msg.data[0];
+
+	return true;
+}
+
+void MessageProcessor::RegisterDevice(ModuleType mtype, DeviceId did)
+{
+	_mtype = mtype;
+	_did = did;
+	SetFilter(mtype, did);
 }
 
 bool MessageProcessor::Start(int txPin, int rxPin)
@@ -99,10 +169,19 @@ void MessageProcessor::ProcessMessage(const CAN_Message& msg)
 	{
 	case MessageType::Init:
 		InvokeProcessFunc<MessageInit>(type, msg);
-		return;
+		break;
 	case MessageType::SetLeverState:
 		InvokeProcessFunc<MessageSetLeverState>(type, msg);
-		return;
+		break;
+	}
+
+	// On receipt of init, return with register
+	if (type == MessageType::Init && _did >= 0)
+	{
+		MessageRegister msg = {};
+		msg.mtype = _mtype;
+		msg.did = _did;
+		SendMessage(msg);
 	}
 }
 

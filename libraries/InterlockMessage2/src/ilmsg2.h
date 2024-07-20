@@ -12,6 +12,7 @@ using lib::Buffer;
 using lib::byte;
 using ilock::LockState;
 using LeverState = ilock::Lever::State;
+using ilock::LockState;
 
 using CAN_IdType = can::IdType;
 using CAN_DataType = can::DataType;
@@ -32,13 +33,18 @@ enum class ModuleType : byte
 enum class MessageType : byte
 {
 	Init,
-	SetLeverState
+	Register,
+	SetLeverState,
+	SetLockState,
+	SetLockIndication
 };
 
 MessageType GetTypeFromId(CAN_IdType id);
 
 CAN_Filter GetMsgFilter(ModuleType modType, DeviceId address);
 
+
+// Message classes
 class MessageBase
 {
 	ModuleType _mt = ModuleType::All;
@@ -72,6 +78,19 @@ public:
 	MessageInit() : MessageBase(MessageType::Init, ModuleType::All) {}
 };
 
+class MessageRegister : public MessageBase
+{
+public:
+	ModuleType mtype;
+	DeviceId did = 0;
+
+	virtual ~MessageRegister() {}
+	MessageRegister() : MessageBase(MessageType::Register, ModuleType::Core) {}
+	void PackMessage(CAN_Message& msg) const override;
+	bool UnpackMessage(const CAN_Message& msg) override;
+};
+
+
 class MessageSetLeverState : public MessageBase
 {
 public:
@@ -82,6 +101,30 @@ public:
 
 	virtual ~MessageSetLeverState() {}
 	MessageSetLeverState() : MessageBase(MessageType::SetLeverState, ModuleType::Core) {}
+	void PackMessage(CAN_Message& msg) const override;
+	bool UnpackMessage(const CAN_Message& msg) override;
+};
+
+class MessageSetLockState : public MessageBase
+{
+public:
+	SlotId slot = 0;
+	LockState state = LockState::On;
+	bool locked = false;
+
+	virtual ~MessageSetLockState() {}
+	MessageSetLockState() : MessageBase(MessageType::SetLockState, ModuleType::Lever) {}
+	void PackMessage(CAN_Message& msg) const override;
+	bool UnpackMessage(const CAN_Message& msg) override;
+};
+
+class MessageSetLockIndication : public MessageBase
+{
+public:
+	bool showIndication = false;
+
+	virtual ~MessageSetLockIndication() {}
+	MessageSetLockIndication() : MessageBase(MessageType::SetLockIndication, ModuleType::Lever) {}
 	void PackMessage(CAN_Message& msg) const override;
 	bool UnpackMessage(const CAN_Message& msg) override;
 };
@@ -113,6 +156,8 @@ public:
 
 class MessageProcessor
 {
+	ModuleType _mtype;
+	DeviceId _did = -1;
 	Map<MessageType, MessageProcessFuncBase*> _processEvents;
 	CAN_Filter _filter;
 	CAN_Controller* _controller = nullptr;
@@ -135,6 +180,9 @@ class MessageProcessor
 	void ProcessMessage(const CAN_Message& msg);
 
 public:
+	//! Set the ID of this device
+	void RegisterDevice(ModuleType mtype, DeviceId did);
+
 	//! Start processor and open CAN connection
 	bool Start(int txPin, int rxPin);
 

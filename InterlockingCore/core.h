@@ -5,20 +5,19 @@ namespace Version
 }
 
 // Third party libraries
-#include <ArxContainer.h>
 #include <ArduinoJson.h>
 
 // Arduino libraries
 #include <SPI.h>
 #include <SD.h>
-#include <Wire.h>
 
 // Custom libraries
 #define STD_LIB
 #include <CommonLib.h>
 #include <iLock.h>
 #include <JSONLoader.h>
-#include <levercom.h>
+#include <ilmsg2.h>
+#include <levercom2.h>
 
 // Used library types
 using DataLoader = JSONLoader::JSONLoader;
@@ -29,8 +28,8 @@ using lib::DeviceSlot;
 using ilock::Interlocking;
 using ilock::Locking;
 using ilock::LockingId;
-using levercom::LeverComManager;
 using LeverState = ilock::Lever::State;
+using levercom::LeverComManager;
 
 // Global variables
 namespace Glob

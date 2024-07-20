@@ -16,6 +16,9 @@ int pinsAddr[7] =
 	26,27,28,29,24,25,18
 };
 
+constexpr int PinTX = 43;
+constexpr int PinRX = 44;
+
 constexpr unsigned long FlashFreq = 100;
 
 //! Global variables for this sketch
@@ -25,10 +28,11 @@ namespace Glob
 	bool indicateLocks = true;
 	auto flashPhase = LOW;
 	auto timePrev = millis();
-	Buffer inputBuffer(1 + SlotCount * 2);
 } //namespace Glob
 
-Lever::Lever(int pinSwitch, int pinLED) :
+// Lever member implementations
+Lever::Lever(int slot, int pinSwitch, int pinLED) :
+	_slot(slot),
 	_pinSwitch(pinSwitch),
 	_pinLED(pinLED)
 {
@@ -37,49 +41,41 @@ Lever::Lever(int pinSwitch, int pinLED) :
 	_ready = true;
 }
 
+void Lever::SetSlotState(LeverState state)
+{
+	if (state != _slotState)
+	{
+		_slotState = state;
+
+		// Send message to core
+		ilmsg::MessageSetLeverState msg = {};
+		msg.did = Glob::thisAddress;
+		msg.slot = _slot;
+		msg.state = (ilock::Lever::State)_slotState;
+		msg.faulted = IsFaulted();
+		ilmsg::Processor.SendMessage(msg);
+	}
+}
+
 // Array of all levers
 Lever* levers;
 
-//! Store data from the core
-void ReceiveMessage(int size)
+//! Process a SetLockState message
+void OnSetLockState(ilmsg::MessageSetLockState msg)
 {
-	ilmod::ReadWireToBuffer(Glob::inputBuffer, size);
-}
-
-//! Send lever states when queried
-void RequestMessage()
-{
-	for (int i = 0; i < SlotCount; i++)
-	{
-		LeverState state = levers[i].GetSlotState();
-		Wire.write((byte)state);
-	}
-}
-
-//! Read data from the input buffer and update lever states
-void ProcessBuffer()
-{
-	// Check that there's data in the buffer
-	if (Glob::inputBuffer.position < 1)
+	int slot = msg.slot;
+	if (slot >= SlotCount || slot < 0)
 		return;
 
-	// Reset buffer for reading
-	Glob::inputBuffer.Reset();
+	// Update the state of the locking
+	levers[slot].SetLockState((LeverState)msg.state);
+	levers[slot].SetLocked(msg.locked);
+}
 
-	// First byte sets flag to show lock status
-	Glob::indicateLocks = Glob::inputBuffer.Read();
-
-	// Subsequent data are 2 bytes per lever
-	for (int i = 0; i < SlotCount; i++)
-	{
-		// First byte - state of lever from locking
-		levers[i].SetLockState((LeverState)Glob::inputBuffer.Read());
-
-		// Second byte - whether the lever is locked
-		levers[i].SetLocked(Glob::inputBuffer.Read());
-	}
-	// Return the buffer to 0
-	Glob::inputBuffer.Reset();
+//! Process a SetLockIndication message
+void OnSetLockIndication(ilmsg::MessageSetLockIndication msg)
+{
+	Glob::indicateLocks = msg.showIndication;
 }
 
 void setup() 
@@ -91,20 +87,18 @@ void setup()
 	levers = new Lever[SlotCount];
 	for (int i = 0; i < SlotCount; i++)
 	{
-		levers[i] = Lever(pinsIn[i], pinsOut[i]);
+		levers[i] = Lever(i, pinsIn[i], pinsOut[i]);
 	}
 
-	// Init I2C wire
-	if (Glob::thisAddress > 0)
-	{
-		Wire.begin(Glob::thisAddress);
-		Wire.onReceive(ReceiveMessage);
-		Wire.onRequest(RequestMessage);
-	}
+	// Register with Message Processor
+	ilmsg::Processor.RegisterDevice(ilmsg::ModuleType::Lever, Glob::thisAddress);
 
-  Serial.begin(9600);
-  Serial.print("lever mod addr: ");
-  Serial.println(Glob::thisAddress);
+	// Set up event callbacks
+	ilmsg::Processor.OnMessage(ilmsg::MessageType::SetLockState, new ilmsg::MessageProcessFunc<ilmsg::MessageSetLockState>(OnSetLockState));
+	ilmsg::Processor.OnMessage(ilmsg::MessageType::SetLockIndication, new ilmsg::MessageProcessFunc<ilmsg::MessageSetLockIndication>(OnSetLockIndication));
+
+	// Start Message Processor
+	ilmsg::Processor.Start(PinTX, PinRX);
 }
 
 void loop() 
@@ -122,11 +116,10 @@ void loop()
 		Glob::flashPhase = Glob::flashPhase == HIGH ? LOW : HIGH;
 	}
 
-	// Process input in the buffer
-	ProcessBuffer();
+	// Process incomming messages
+	ilmsg::Processor.ProcessReceived();
 
 	// Update lever status
-  //Serial.print("states");
 	for (int i = 0; i < SlotCount; i++)
 	{
 		// Update LED state
@@ -143,11 +136,5 @@ void loop()
 			levers[i].SetSlotState(Reversed);
 		else
 			levers[i].SetSlotState(Normal);
-
-    //Serial.print(" | lever ");
-    //Serial.print(i);
-    //Serial.print(" = ");
-    //Serial.print(levers[i].GetSlotState());
 	}
-  //Serial.println(";");
 }

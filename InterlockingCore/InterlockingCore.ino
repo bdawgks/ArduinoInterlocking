@@ -4,7 +4,7 @@
 //! Pointer to the interlocking class
 Interlocking* il = nullptr;
 
-//! I2C Message processor
+//! Lever manager
 LeverComManager* leverManager;
 
 // Loads data from the SD card config file
@@ -78,9 +78,6 @@ void InitInterlocking(DataLoader& loader)
         Log::LockingRules(data);
     }
 
-    // Initialize levr com buffers
-    leverManager->InitBuffers();
-
     // Now finalize all locking rules
     for (auto& data : leverData)
     {
@@ -96,19 +93,6 @@ void InitInterlocking(DataLoader& loader)
 
         Log::LeverInitState(lever);
     }
-}
-
-void RequestLeverStates()
-{
-    // Send requests
-    Vector<DeviceId> addresses = leverManager->GetAddresses();
-    for (auto address : addresses)
-    {
-        leverManager->RequestLeverState(address);
-    }
-
-    // Process the buffers and read the states
-    leverManager->ProcessBuffers();
 }
 
 bool LeverStateChanged(LockingId lid, LeverState newState)
@@ -137,6 +121,11 @@ void setup()
     // Print software version
     Log::Version();
 
+    // Set up ILMSG Communication
+    ilmsg::Processor.RegisterDevice(ilmsg::ModuleType::Core, 0);
+    // TODO: ilmsg::Processor.Start()
+    ilmsg::Processor.SendMessage(ilmsg::MessageInit());
+
     // Set up lever coms
     leverManager = new LeverComManager();
     leverManager->OnStateChanged(LeverStateChanged);
@@ -153,9 +142,6 @@ void setup()
     InitInterlocking(*loader);
     il->OnLockChange(LeverLockChanged);
 
-    // Init I2C bus wire
-    Wire.begin();
-
     // Indicate successful init
     Glob::initSuccessful = true;
     Log::Init();
@@ -170,10 +156,6 @@ void loop()
     // Do nothing if interlocking is null
     if (!il)
     return;
-
-    leverManager->PushLeverStates();
-    delay(10);
-    RequestLeverStates();
 
     if (Serial.available() > 0)
     {
