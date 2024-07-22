@@ -27,7 +27,8 @@ enum class ModuleType : byte
 {
 	All = 0,
 	Core,
-	Lever
+	Lever,
+	NModuleType
 };
 
 enum class MessageType : byte
@@ -161,6 +162,7 @@ class MessageProcessor
 	Map<MessageType, MessageProcessFuncBase*> _processEvents;
 	CAN_Filter _filter;
 	CAN_Controller* _controller = nullptr;
+	String _moduleNames[(int)ModuleType::NModuleType];
 
 	//! Template function for invoking message processor function callback
 	template <class T>
@@ -180,11 +182,13 @@ class MessageProcessor
 	void ProcessMessage(const CAN_Message& msg);
 
 public:
+	MessageProcessor();
+
 	//! Set the ID of this device
 	void RegisterDevice(ModuleType mtype, DeviceId did);
 
 	//! Start processor and open CAN connection
-	bool Start(int txPin, int rxPin);
+	bool Start(int txPin, int rxPin, long clockSpeed = -1);
 
 	//! Set filter
 	void SetFilter(ModuleType mtype, DeviceId addr);
@@ -197,6 +201,9 @@ public:
 
 	//! Send a message over the bus
 	void SendMessage(const MessageBase& msg);
+
+	//! Get module type name;
+	String ModuleTypeToString(ModuleType mtype) { return _moduleNames[(int)mtype]; }
 };
 
 extern MessageProcessor Processor;

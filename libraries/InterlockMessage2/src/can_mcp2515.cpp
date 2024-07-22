@@ -7,7 +7,7 @@ namespace can
 bool MCP2515Controller::Start()
 {
 	CAN.setPins(_txPin, _rxPin);
-	//CAN.setClockFrequency(8E6);
+	CAN.setClockFrequency(_clockSpeed);
 	CAN.filterExtended(_filter.code, _filter.mask);
 	return CAN.begin(500E3);
 }

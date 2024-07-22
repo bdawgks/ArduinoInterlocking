@@ -15,6 +15,7 @@ byte ReadBitAddress(int pins[7], int onState)
 	{
 		int pinNum = 6 - i; // start at right-most pin
 		pinMode(pins[pinNum], INPUT_PULLUP);
+		delay(100);
 		int set = digitalRead(pins[pinNum]) == onState ? 1 : 0;
 		address |= (set << i);
 	}

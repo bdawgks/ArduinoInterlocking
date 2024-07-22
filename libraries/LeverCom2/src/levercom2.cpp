@@ -8,6 +8,11 @@
 namespace levercom
 {
 
+void LeverComManager::ManagerOnSetLeverState(ilmsg::MessageSetLeverState msg)
+{
+	LeverManager.OnSetLeverState(msg);
+}
+
 void LeverComManager::RegisterLever(DeviceSlot dSlot, LockingId lid, bool locked)
 {
 	LeverInfo* info = new LeverInfo();
@@ -17,7 +22,7 @@ void LeverComManager::RegisterLever(DeviceSlot dSlot, LockingId lid, bool locked
 	_slotMap.insert(std::make_pair(lid, dSlot));
 }
 
-void SendLockState(DeviceSlot dSlot)
+void LeverComManager::SendLockState(DeviceSlot dSlot)
 {
 	if (_info.find(dSlot) == _info.end())
 		return;
@@ -25,19 +30,20 @@ void SendLockState(DeviceSlot dSlot)
 	ilmsg::MessageSetLockState msg = {};
 	msg.slot = dSlot.slot;
 	msg.state = _info[dSlot]->lockState;
-	msg.locked = _info[dSlot]->locked;
+	msg.locked = _info[dSlot]->leverLocked;
 	msg.SetDestination(dSlot.address);
 	ilmsg::Processor.SendMessage(msg);
 }
 
-void OnRegister(ilmsg::MessageRegister msg)
+void LeverComManager::OnRegister(ilmsg::MessageRegister msg)
 {
 	_registeredDevices.push_back(msg.did);
 }
 
-void OnSetLeverState(ilmsg::MessageSetLeverState msg)
+void LeverComManager::OnSetLeverState(ilmsg::MessageSetLeverState msg)
 {
 	DeviceSlot dSlot = { msg.did, msg.slot };
+
 	if (_info.find(dSlot) == _info.end())
 		return;
 
@@ -49,7 +55,7 @@ void OnSetLeverState(ilmsg::MessageSetLeverState msg)
 
 		if (allowChange)
 		{
-			_info[dSlot]->currentState = state;
+			_info[dSlot]->currentState = msg.state;
 			SendLockState(dSlot);
 		}
 	}
@@ -57,8 +63,7 @@ void OnSetLeverState(ilmsg::MessageSetLeverState msg)
 
 void LeverComManager::Start()
 {
-	ilmsg::Processor.OnMessage(ilmsg::MessageType::Register, new ilmsg::MessageProcessFunc<ilmsg::MessageRegister>(OnRegister)));
-	ilmsg::Processor.OnMessage(ilmsg::MessageType::SetLeverState, new ilmsg::MessageProcessFunc<ilmsg::MessageSetLeverState>(OnSetLeverState)));
+	ilmsg::Processor.OnMessage(ilmsg::MessageType::SetLeverState, new ilmsg::MessageProcessFunc<ilmsg::MessageSetLeverState>(ManagerOnSetLeverState));
 }
 
 LeverState LeverComManager::GetState(DeviceSlot slot)
@@ -89,11 +94,13 @@ void LeverComManager::SetLeverLockIndication(bool on)
 	{
 		// Send message to all levers
 		ilmsg::MessageSetLockIndication msg = {};
-		msg.showInidcation = on;
+		msg.showIndication = on;
 		ilmsg::Processor.SendMessage(msg);
 	}
 	_indicateLeverLocks = on;
 }
+
+LeverComManager LeverManager;
 
 } // namespace levercom
 	

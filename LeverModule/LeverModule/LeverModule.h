@@ -2,9 +2,9 @@
 #include "CommonLib.h"
 #include "ilmsg2.h"
 #include "ilmod.h"
+#include "Logger.h"
 
 using lib::byte;
-using lib::Buffer;
 
 enum LeverState : byte
 {
@@ -40,3 +40,20 @@ public:
 
 	void SetLocked(bool locked) { _locked = locked; }
 };
+
+enum LogType
+{
+    Error,
+    General,
+    MessageCom,
+    All
+};
+
+
+class LeverLogger : public logger::Logger<unsigned int, LogType>
+{
+protected:
+	LogType GetAllType() override { return LogType::All; }
+};
+
+LeverLogger Log;

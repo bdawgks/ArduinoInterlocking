@@ -1,16 +1,16 @@
 #include "LeverModule.h"
+#include "HardwareProfile.h"
 
 constexpr int SlotCount = 6;
 
-const int pinsIn[SlotCount] =
+int pinsIn[SlotCount] =
 {
 	12,11,10,87
 };
-const int pinsOut[SlotCount] =
+int pinsOut[SlotCount] =
 {
 	6,6,6,6,6,6
 };
-
 int pinsAddr[7] =
 {
 	26,27,28,29,24,25,18
@@ -20,6 +20,9 @@ constexpr int PinTX = 43;
 constexpr int PinRX = 44;
 
 constexpr unsigned long FlashFreq = 100;
+
+// Hardware setup
+hwprofile::ProfileData hwdata = hwprofile::GetProfile(hwprofile::BoardType::ArduinoESP32);
 
 //! Global variables for this sketch
 namespace Glob 
@@ -54,6 +57,12 @@ void Lever::SetSlotState(LeverState state)
 		msg.state = (ilock::Lever::State)_slotState;
 		msg.faulted = IsFaulted();
 		ilmsg::Processor.SendMessage(msg);
+
+		if (true)
+		{
+		  String logStr = "Lever " + String(_slot) + " state updated to " + String(state); 
+		  Log.Message(MessageCom, logStr);
+		}
 	}
 }
 
@@ -80,6 +89,19 @@ void OnSetLockIndication(ilmsg::MessageSetLockIndication msg)
 
 void setup() 
 {
+  hwprofile::AssignPinData(hwdata, pinsAddr, pinsIn, pinsOut);
+
+  //Log[All] = true;
+  Log.EnableLogType(All, true);
+
+  // Set up serial logging
+  if (Log.Enabled())
+  {
+    Serial.begin(9600);
+    while(!Serial);
+    Log.Message(General, "Lever Module started");
+  }
+
 	// Read address
 	Glob::thisAddress = ilmod::ReadBitAddress(pinsAddr);
 
@@ -98,7 +120,15 @@ void setup()
 	ilmsg::Processor.OnMessage(ilmsg::MessageType::SetLockIndication, new ilmsg::MessageProcessFunc<ilmsg::MessageSetLockIndication>(OnSetLockIndication));
 
 	// Start Message Processor
-	ilmsg::Processor.Start(PinTX, PinRX);
+	if(!ilmsg::Processor.Start(hwdata.canTxPin, hwdata.canRxPin, hwdata.canClockSpeed))
+  {
+    Log.Message(MessageCom, "CAN did not initialize");
+  }
+
+  if (Glob::thisAddress < 1)
+    Log.Message(General, "Module address is zero, this module will remain inactive.");
+  else
+    Log.Message(General, "Module Address: " + String(Glob::thisAddress));
 }
 
 void loop() 

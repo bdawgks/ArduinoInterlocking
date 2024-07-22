@@ -52,7 +52,7 @@ void MessageRegister::PackMessage(CAN_Message& msg) const
 	msg.data[0] = (can::DataType)did;
 	msg.data[1] = (can::DataType)mtype;
 
-	msg.dataSize = 1;
+	msg.dataSize = 2;
 }
 
 bool MessageRegister::UnpackMessage(const CAN_Message& msg)
@@ -134,6 +134,14 @@ bool MessageSetLockIndication::UnpackMessage(const CAN_Message& msg)
 	return true;
 }
 
+MessageProcessor::MessageProcessor()
+{
+	_moduleNames[(int)ModuleType::All] = "Unspecified";
+	_moduleNames[(int)ModuleType::Core] = "Core";
+	_moduleNames[(int)ModuleType::Lever] = "Lever";
+	_moduleNames[(int)ModuleType::NModuleType] = "Invalid Module Type";
+}
+
 void MessageProcessor::RegisterDevice(ModuleType mtype, DeviceId did)
 {
 	_mtype = mtype;
@@ -141,7 +149,7 @@ void MessageProcessor::RegisterDevice(ModuleType mtype, DeviceId did)
 	SetFilter(mtype, did);
 }
 
-bool MessageProcessor::Start(int txPin, int rxPin)
+bool MessageProcessor::Start(int txPin, int rxPin, long clockSpeed)
 {
 	if (_controller)
 		return false;
@@ -154,6 +162,8 @@ bool MessageProcessor::Start(int txPin, int rxPin)
 
 	_controller->SetFilter(_filter);
 	_controller->SetPins(txPin, rxPin);
+	if (clockSpeed >= 0)
+		_controller->SetClockSpeed(clockSpeed);
 	return _controller->Start();
 }
 
@@ -162,17 +172,21 @@ void MessageProcessor::SetFilter(ModuleType mtype, DeviceId addr)
 	_filter = GetMsgFilter(mtype, addr);
 }
 
+#define INVOKE_MSG(msgname) \
+	case MessageType::msgname: \
+		InvokeProcessFunc<Message##msgname>(type, msg); \
+		break;
+
 void MessageProcessor::ProcessMessage(const CAN_Message& msg)
 {
 	MessageType type = GetTypeFromId(msg.id);
 	switch (type)
 	{
-	case MessageType::Init:
-		InvokeProcessFunc<MessageInit>(type, msg);
-		break;
-	case MessageType::SetLeverState:
-		InvokeProcessFunc<MessageSetLeverState>(type, msg);
-		break;
+		INVOKE_MSG(Init)
+		INVOKE_MSG(Register)
+		INVOKE_MSG(SetLeverState)
+		INVOKE_MSG(SetLockState)
+		INVOKE_MSG(SetLockIndication)
 	}
 
 	// On receipt of init, return with register
@@ -181,6 +195,7 @@ void MessageProcessor::ProcessMessage(const CAN_Message& msg)
 		MessageRegister msg = {};
 		msg.mtype = _mtype;
 		msg.did = _did;
+
 		SendMessage(msg);
 	}
 }

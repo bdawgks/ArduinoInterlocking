@@ -1,25 +1,25 @@
 // Header for this file
 #include "core.h"
 
-//! Pointer to the interlocking class
-Interlocking* il = nullptr;
+#include "HardwareProfile.h"
+hwprofile::ProfileData hwdata = hwprofile::GetProfile(hwprofile::BoardType::ArduinoMKR);
 
-//! Lever manager
-LeverComManager* leverManager;
+//! Pointer to the interlocking class
+ilock::Interlocking* il = nullptr;
 
 // Loads data from the SD card config file
 DataLoader* LoadData()
 {
     if (!SD.begin(SDCARD_SS_PIN))
     {
-        Log::Error(MissingDataCard, F("no SD card detected"));
+        Log.Error(MissingDataCard, F("no SD card detected"));
         return nullptr;
     }
 
     // Check for config file
     if (!SD.exists(Glob::configFileName))
     {
-        Log::Error(MissingConfig, F("config file does not exist"));
+        Log.Error(MissingConfig, F("config file does not exist"));
         return nullptr;
     }
 
@@ -27,7 +27,7 @@ DataLoader* LoadData()
     File config = SD.open(Glob::configFileName);
     if (!config)
     {
-        Log::Error(ConfigReadError, F("error reading config file"));
+        Log.Error(ConfigReadError, F("error reading config file"));
         return nullptr;
     }
 
@@ -36,7 +36,7 @@ DataLoader* LoadData()
     DeserializationError err = deserializeJson(doc, config);
     if (err)
     {
-        Log::Error(JSONDeserializeError, "JSON deserialize error:" + String(err.c_str()));
+        Log.Error(JSONDeserializeError, "JSON deserialize error:" + String(err.c_str()));
         return nullptr;
     }
 
@@ -47,14 +47,14 @@ DataLoader* LoadData()
 //! Set up the interlocking from the loaded data
 void InitInterlocking(DataLoader& loader)
 {
-    il = new Interlocking();
+    il = new ilock::Interlocking();
 
     // First create all levers
     Vector<JSONLoader::LeverData> leverData = loader.GetLeverData();
     for (auto& data : leverData)
     {
         ilock::Lever* lever = il->AddLever(data.name);
-        leverManager->RegisterLever(data.slot, lever->GetId());
+        LeverManager.RegisterLever(data.slot, lever->GetId());
     }
     // Apply locking rules
     Vector<JSONLoader::InterlockingData> lockingData = loader.GetInterlockingData();
@@ -64,18 +64,18 @@ void InitInterlocking(DataLoader& loader)
         Locking* leverAffected = il->GetLocking(data.affectedLever);
         if (!leverActing)
         {
-            Log::Error(LeverNotFound, "locking \"" + data.actingLever + "\" not found");
+            Log.Error(LeverNotFound, "locking \"" + data.actingLever + "\" not found");
             continue;
         }
         if (!leverAffected)
         {
-            Log::Error(LeverNotFound, "locking \"" + data.affectedLever + "\" not found");
+            Log.Error(LeverNotFound, "locking \"" + data.affectedLever + "\" not found");
             continue;
         }
         leverActing->AddLockRule(ilock::LockState::On, leverAffected->GetId(), (ilock::LockingRule)(byte)data.ruleOn);
         leverActing->AddLockRule(ilock::LockState::Off, leverAffected->GetId(), (ilock::LockingRule)(byte)data.ruleOff);
 
-        Log::LockingRules(data);
+        Log.LockingRules(data);
     }
 
     // Now finalize all locking rules
@@ -89,9 +89,9 @@ void InitInterlocking(DataLoader& loader)
     for (auto lid : il->GetAllLockings())
     {
         Locking* lever = il->GetLocking(lid);
-        leverManager->SetLeverLockState(lever->GetId(), lever->IsLocked());
+        LeverManager.SetLeverLockState(lever->GetId(), lever->IsLocked());
 
-        Log::LeverInitState(lever);
+        Log.LeverInitState(lever);
     }
 }
 
@@ -106,11 +106,21 @@ bool LeverStateChanged(LockingId lid, LeverState newState)
 
 void LeverLockChanged(LockingId lid, bool locked)
 {
-    leverManager->SetLeverLockState(lid, locked);
+    LeverManager.SetLeverLockState(lid, locked);
+}
+
+void OnRegister(ilmsg::MessageRegister msg)
+{
+    Log.ModuleRegistered(msg);
+    LeverManager.OnRegister(msg);
 }
 
 void setup()
 {
+    // Set logging level
+    Log[All] = true;
+    Log[Interlocking] = false;
+
     // Set up seiral and wait for it to connect
     Serial.begin(9600);
     while (!Serial)
@@ -119,22 +129,25 @@ void setup()
     }
 
     // Print software version
-    Log::Version();
+    Log.Version();
 
     // Set up ILMSG Communication
     ilmsg::Processor.RegisterDevice(ilmsg::ModuleType::Core, 0);
-    // TODO: ilmsg::Processor.Start()
+    if(!ilmsg::Processor.Start(hwdata.canTxPin, hwdata.canRxPin, hwdata.canClockSpeed))
+    {
+      Log.Error(CANFailed, F("CAN initialization failed"));
+    }
+    ilmsg::Processor.OnMessage(ilmsg::MessageType::Register, new ilmsg::MessageProcessFunc<ilmsg::MessageRegister>(OnRegister));
     ilmsg::Processor.SendMessage(ilmsg::MessageInit());
 
     // Set up lever coms
-    leverManager = new LeverComManager();
-    leverManager->OnStateChanged(LeverStateChanged);
+    LeverManager.OnStateChanged(LeverStateChanged);
 
     // Load data
     DataLoader* loader = LoadData();
     if (!loader)
     {
-        Log::Error(Unknown, F("loader pointer is null"));
+        Log.Error(Unknown, F("loader pointer is null"));
         return;
     }
 
@@ -142,9 +155,12 @@ void setup()
     InitInterlocking(*loader);
     il->OnLockChange(LeverLockChanged);
 
+    // Start listening for lever coms
+    LeverManager.Start();
+
     // Indicate successful init
     Glob::initSuccessful = true;
-    Log::Init();
+    Log.Init();
 }
 
 void loop() 
@@ -157,13 +173,15 @@ void loop()
     if (!il)
     return;
 
+    ilmsg::Processor.ProcessReceived();
+
     if (Serial.available() > 0)
     {
         String str = Serial.readString();
         str.trim();
         if (str == "ping")
         {
-            Log::Ping();
+            Log.Ping();
         }
     }
 }

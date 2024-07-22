@@ -2,8 +2,11 @@
 
 #include "stdint.h"
 
+#ifdef ARDUINO_ARCH_ESP32
 #define ESP32
-//#define MCP2515
+#else
+#define MCP2515
+#endif
 
 namespace can
 {
@@ -31,6 +34,7 @@ protected:
 	int _txPin;
 	int _rxPin;
 	Filter _filter;
+	long _clockSpeed;
 
 public:
 	virtual ~CanController() {}
@@ -39,6 +43,7 @@ public:
 		_txPin = txPin;
 		_rxPin = rxPin;
 	}
+	void SetClockSpeed(long speed) { _clockSpeed = speed; }
 	void SetFilter(Filter& filter) { _filter = filter; }
 	virtual bool Start();
 	virtual bool Read(Message& msg);

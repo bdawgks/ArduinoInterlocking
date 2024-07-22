@@ -43,8 +43,6 @@ class LeverComManager
 	bool _indicateLeverLocks = true;
 	Vector<DeviceId> _registeredDevices;
 
-	//! Process Register message
-	void OnRegister(ilmsg::MessageRegister msg);
 	//! Process SetLeverState message
 	void OnSetLeverState(ilmsg::MessageSetLeverState msg);
 	//! Send lock state message to specified lever
@@ -66,6 +64,13 @@ public:
 	void SetLeverLockState(LockingId lid, bool locked);
 	//! Set whether lock indication is on
 	void SetLeverLockIndication(bool on);
+
+	//! Process Register message
+	void OnRegister(ilmsg::MessageRegister msg);
+	//! Helper callback to process SetLeverState messages
+	static void ManagerOnSetLeverState(ilmsg::MessageSetLeverState msg);
 };
+
+extern LeverComManager LeverManager;
 
 } // namespace levercom

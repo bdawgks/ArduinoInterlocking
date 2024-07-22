@@ -18,6 +18,10 @@ namespace Version
 #include <JSONLoader.h>
 #include <ilmsg2.h>
 #include <levercom2.h>
+#include <Logger.h>
+
+// Standard libraries
+#include <limits>
 
 // Used library types
 using DataLoader = JSONLoader::JSONLoader;
@@ -29,7 +33,7 @@ using ilock::Interlocking;
 using ilock::Locking;
 using ilock::LockingId;
 using LeverState = ilock::Lever::State;
-using levercom::LeverComManager;
+using levercom::LeverManager;
 
 // Global variables
 namespace Glob
@@ -50,16 +54,30 @@ enum ErrorCode
     ConfigReadError,
     JSONDeserializeError,
     LeverNotFound,
+    CANFailed
 };
 
-//! Static logging functions
-class Log
+enum LogType
 {
-public:
-    const static bool logLockingRules = false;
+    Error,
+    General,
+    Interlocking,
+    MessageCom,
+    All
+};
 
-    static void Version()
+//! Logging functions
+class CoreLogger : public logger::Logger<unsigned int, LogType>
+{  
+protected:
+    LogType GetAllType() override { return LogType::All; }
+
+public:
+    void Version()
     {
+        if (!LogEnabled(General))
+            return;
+
         Serial.print(F("[LOG] Interlocking Core v"));
         Serial.print(Version::Major);
         Serial.print('.');
@@ -67,8 +85,11 @@ public:
     }
 
     //! Log error code and message
-    static void Error(ErrorCode error, String msg)
+    void Error(ErrorCode error, String msg)
     {
+        if (!LogEnabled(LogType::Error))
+            return;
+
         Serial.print(F("[ERROR] "));
         Serial.print(error);
         if (msg.isEmpty())
@@ -77,19 +98,25 @@ public:
         Serial.println(msg);
     }
 
-    static void Init()
+    void Init()
     {
+        if (!LogEnabled(General))
+            return;
+
         Serial.println(F("[LOG] System initialized..."));
     }
 
-    static void Ping()
+    void Ping()
     {
+        if (!LogEnabled(General))
+            return;
+
         Serial.println(F("[LOG] System running..."));
     }
 
-    static void LeverInitState(Locking* lever)
+    void LeverInitState(Locking* lever)
     {
-        if (!logLockingRules || !lever)
+        if (!LogEnabled(Interlocking))
             return;
 
         Serial.print(F("[LOG] init state of lever "));
@@ -98,9 +125,9 @@ public:
         Serial.println(lever->IsLocked() ? F("LOCKED") : F("UNLOCKED"));
     }
 
-    static void LockingRules(JSONLoader::InterlockingData& data)
+    void LockingRules(JSONLoader::InterlockingData& data)
     {
-        if (!logLockingRules)
+        if (!LogEnabled(Interlocking))
             return;
 
         Serial.print(F("[LOG] lock rule; lever "));
@@ -113,4 +140,17 @@ public:
         Serial.print(data.ruleOff);
         Serial.println(F(" when OFF"));
     }
+
+    void ModuleRegistered(ilmsg::MessageRegister msg)
+    {
+        if (!LogEnabled(MessageCom))
+            return;
+
+        Serial.print(F("[LOG] module registered: "));
+        Serial.print(ilmsg::Processor.ModuleTypeToString(msg.mtype));
+        Serial.print(F(" at address "));
+        Serial.println(msg.did);
+    }
 };
+
+CoreLogger Log;
