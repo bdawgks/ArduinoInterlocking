@@ -89,7 +89,7 @@ void InitInterlocking(DataLoader& loader)
     for (auto lid : il->GetAllLockings())
     {
         Locking* lever = il->GetLocking(lid);
-        LeverManager.SetLeverLockState(lever->GetId(), lever->IsLocked());
+        LeverManager.SetLeverLockState(lever->GetId(), lever->IsLocked(), true);
 
         Log.LeverInitState(lever);
     }
@@ -97,11 +97,18 @@ void InitInterlocking(DataLoader& loader)
 
 bool LeverStateChanged(LockingId lid, LeverState newState)
 {
-    Serial.print(F("state changed for lever "));
-    Serial.print(il->GetLocking(lid)->GetName());
-    Serial.print(F(" , new state: "));
-    Serial.println((int)newState);
-    return true;
+    ilock::Lever* lever = il->GetLever(lid);
+
+    bool changed = false;
+    if (lever)
+        changed = lever->SetLeverState(newState);
+
+    if (changed)
+        Serial.println("Lever " + lever->GetName() + " is now " + (newState == LeverState::Reversed ? "Reversed" : "Normal"));
+    else
+        Serial.println("Lever " + lever->GetName() + " state change failed");
+
+    return changed;
 }
 
 void LeverLockChanged(LockingId lid, bool locked)
@@ -111,15 +118,15 @@ void LeverLockChanged(LockingId lid, bool locked)
 
 void OnRegister(ilmsg::MessageRegister msg)
 {
-    Log.ModuleRegistered(msg);
-    LeverManager.OnRegister(msg);
+    if (LeverManager.OnRegister(msg))
+        Log.ModuleRegistered(msg);
 }
 
 void setup()
 {
     // Set logging level
     Log[All] = true;
-    Log[Interlocking] = false;
+    Log[Interlocking] = true;
 
     // Set up seiral and wait for it to connect
     Serial.begin(9600);
@@ -161,18 +168,28 @@ void setup()
     // Indicate successful init
     Glob::initSuccessful = true;
     Log.Init();
+
+    pinMode(FlashPin, OUTPUT);
 }
 
 void loop() 
 {
     // Do nothing if init failed
     if (!Glob::initSuccessful)
-    return;
+        return;
 
     // Do nothing if interlocking is null
     if (!il)
-    return;
+        return;
 
+    // Send Init message at regular intervals to detect new modules
+    if (millis() > Glob::nextInitTime)
+    {
+        ilmsg::Processor.SendMessage(ilmsg::MessageInit());
+        Glob::nextInitTime = millis() + InitFreq;
+    }
+
+    // Process CAN traffic
     ilmsg::Processor.ProcessReceived();
 
     if (Serial.available() > 0)
@@ -184,4 +201,19 @@ void loop()
             Log.Ping();
         }
     }
+
+    FlashIndicator();
+}
+
+void FlashIndicator()
+{
+  auto timeNow = millis();
+  auto timeElapsed = timeNow - Glob::lastFlashTime;
+  if (timeElapsed > FlashFreq)
+  {
+    Glob::lastFlashTime = timeNow;
+    Glob::flashPhase = Glob::flashPhase == HIGH ? LOW : HIGH;
+  }
+
+  digitalWrite(FlashPin, Glob::flashPhase);
 }

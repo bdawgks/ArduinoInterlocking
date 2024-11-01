@@ -45,8 +45,8 @@ public:
         Logger<T, E>& _ref;
     public:
         FlagsRef(Logger<T, E>& ref, E type) : _ref(ref), _type(type) {}
-        bool& operator= (bool enabled) { _ref.EnableLogType(_type, enabled); }
-        operator bool& () { _ref.LogEnabled(_type); }
+        bool& operator= (bool enabled) { _ref.EnableLogType(_type, enabled); return enabled; }
+        operator bool& () { return _ref.LogEnabled(_type); }
     };
 
     FlagsRef operator [](E type)

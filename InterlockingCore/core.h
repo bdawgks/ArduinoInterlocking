@@ -35,6 +35,11 @@ using ilock::LockingId;
 using LeverState = ilock::Lever::State;
 using levercom::LeverManager;
 
+// Constants for flashing indicator LED
+constexpr unsigned long FlashFreq = 100;
+constexpr int FlashPin = LED_BUILTIN;
+constexpr unsigned long InitFreq = 5000;
+
 // Global variables
 namespace Glob
 {
@@ -43,6 +48,13 @@ namespace Glob
 
     //! Indicates a successful initialization (config loaded)
     bool initSuccessful = false;
+
+    //! Variables to control flashing indicator LED
+    auto flashPhase = LOW;
+    unsigned long lastFlashTime = millis();
+
+    // Next Init broadcast time
+    unsigned long nextInitTime = millis() + InitFreq;
 }
 
 //! Error codes

@@ -67,6 +67,7 @@ public:
 		_interlocking(&interlocking),
 		_name(name)
 	{}
+	virtual ~Locking() = default;
 
 	//! Get locking ID
 	const LockingId& GetId() { return _lid; }
@@ -136,7 +137,7 @@ public:
 		: Locking(lid, interlocking, name) {}
 
 	//! Set lever state
-	void SetLeverState(State newState);
+	bool SetLeverState(State newState);
 
 	//! Throw lever, toggles the state
 	void ThrowLever();
@@ -159,6 +160,7 @@ public:
 private:
 	Map<String, LockingId> _lockNames;
 	Map<LockingId, Locking*> _allLocks;
+	Map<LockingId, Lever*> _allLevers;
 	Map<LockingId, bool> _faultedLevers;
 	int _countFaulted = 0;
 	Locking _faultLock;
@@ -174,6 +176,9 @@ public:
 
 	//! Get lock mechanism by its id
 	Locking* GetLocking(LockingId lid);
+
+	//! Get lever by its id
+	Lever* GetLever(LockingId lid);
 
 	//! Sets lever as faulted
 	void SetLeverFaulted(LockingId id, bool faulted);

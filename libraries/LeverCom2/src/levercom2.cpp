@@ -29,23 +29,54 @@ void LeverComManager::SendLockState(DeviceSlot dSlot)
 
 	ilmsg::MessageSetLockState msg = {};
 	msg.slot = dSlot.slot;
-	msg.state = _info[dSlot]->lockState;
+	msg.state = _info[dSlot]->currentState;
 	msg.locked = _info[dSlot]->leverLocked;
 	msg.SetDestination(dSlot.address);
+
+	//Serial.println("message composed for " + String(dSlot.address) + " | slot " + String(dSlot.slot) + " | locked " + String(msg.locked));
+
 	ilmsg::Processor.SendMessage(msg);
 }
 
-void LeverComManager::OnRegister(ilmsg::MessageRegister msg)
+bool LeverComManager::OnRegister(ilmsg::MessageRegister msg)
 {
+	if (std::find(_registeredDevices.begin(), _registeredDevices.end(), msg.did) != _registeredDevices.end())
+		return false;
+
 	_registeredDevices.push_back(msg.did);
+
+	// Send lever state to newly registered module
+	if (msg.mtype == ilmsg::ModuleType::Lever)
+	{
+		for (auto it = _info.begin(); it != _info.end(); it++)
+		{
+			if (it->first.address == msg.did)
+			{
+				Serial.println("Sending states to did " + String(msg.did) + " slot " + String(it->first.slot));
+				SendLockState(it->first);
+			}
+		}
+		return true;
+	}
+
+	return false;
 }
 
 void LeverComManager::OnSetLeverState(ilmsg::MessageSetLeverState msg)
 {
 	DeviceSlot dSlot = { msg.did, msg.slot };
 
+	Serial.println("lever state received and slot found");
+
 	if (_info.find(dSlot) == _info.end())
+	{
+		Serial.println("slot not found, addr = " + String(dSlot.address) + " slot = " + String(dSlot.slot));
 		return;
+	}
+
+	auto curState = _info[dSlot]->currentState;
+
+	Serial.println("slot found");
 
 	if (msg.state != _info[dSlot]->currentState)
 	{
@@ -74,7 +105,7 @@ LeverState LeverComManager::GetState(DeviceSlot slot)
 	return _info[slot]->currentState;
 }
 
-void LeverComManager::SetLeverLockState(LockingId lid, bool locked)
+void LeverComManager::SetLeverLockState(LockingId lid, bool locked, bool forceUpdate)
 {
 	if (_slotMap.find(lid) == _slotMap.end())
 		return;
@@ -82,7 +113,7 @@ void LeverComManager::SetLeverLockState(LockingId lid, bool locked)
 	DeviceSlot dSlot = _slotMap[lid];
 	bool curLocked = _info[dSlot]->leverLocked;
 	_info[dSlot]->leverLocked = locked;
-	if (curLocked != locked)
+	if (curLocked != locked || forceUpdate)
 	{
 		SendLockState(dSlot);
 	}

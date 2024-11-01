@@ -10,7 +10,7 @@
 namespace ilmsg 
 {
 
-int BitOffset(int numBytes) { return numBytes * 8; }
+const int BitOffset(const int numBytes) { return numBytes * 8; }
 
 MessageType GetTypeFromId(CAN_IdType id)
 {
@@ -21,15 +21,17 @@ MessageType GetTypeFromId(CAN_IdType id)
 
 ModuleType GetModTypeFromId(CAN_IdType id)
 {
-	CAN_IdType mask = 0x7F << BitOffset(1);
-	byte num = id & mask;
+	CAN_IdType mask = 0x7F << BitOffset(2);
+	byte num = (id & mask) >> BitOffset(2);
 	return (ModuleType)num;
 }
 
 DeviceId GetAddressFromId(CAN_IdType id)
 {
-	CAN_IdType mask = 0xFF << BitOffset(2);
-	DeviceId addr = id & mask;
+	CAN_IdType mask = 0xFF << BitOffset(1);
+	//int addressInt = (id & mask) >> BitOffset(1);
+	//Serial.println("mask " + String(mask) + " | address as int " + String(addressInt));
+	DeviceId addr = (id & mask) >> BitOffset(1);
 	return addr;
 }
 
@@ -75,6 +77,8 @@ void MessageSetLeverState::PackMessage(CAN_Message& msg) const
 	msg.data[2] = (can::DataType)state;
 	msg.data[3] = (can::DataType)faulted;
 
+	Serial.println("MSLS Pack [" + String(msg.data[1]) + ", " + String(msg.data[2]) + ", " + String(msg.data[3]) + "]");
+
 	msg.dataSize = 4;
 }
 
@@ -88,6 +92,8 @@ bool MessageSetLeverState::UnpackMessage(const CAN_Message& msg)
 	slot = (SlotId)msg.data[1];
 	state = (LeverState)msg.data[2];
 	faulted = (bool)msg.data[3];
+
+	Serial.println("MSLS Unpack [" + String(msg.data[1]) + ", " + String(msg.data[2]) + ", " + String(msg.data[3]) + "]");
 
 	return true;
 }
@@ -109,7 +115,7 @@ bool MessageSetLockState::UnpackMessage(const CAN_Message& msg)
 
 	MessageBase::UnpackMessage(msg);
 	slot = (SlotId)msg.data[0];
-	state = (LockState)msg.data[1];
+	state = (LeverState)msg.data[1];
 	locked = (bool)msg.data[2];
 
 	return true;
@@ -179,6 +185,13 @@ void MessageProcessor::SetFilter(ModuleType mtype, DeviceId addr)
 
 void MessageProcessor::ProcessMessage(const CAN_Message& msg)
 {
+	// Throw out anything not addressed to this or global address 0
+	DeviceId destId = GetAddressFromId(msg.id);
+	if (destId != _did && destId != 0)
+		return;
+
+	//Serial.println("recieved message addressed to " + String(destId) + " | id " + String(msg.id) + " | mod type " + _moduleNames[(int)GetModTypeFromId(msg.id)]);
+
 	MessageType type = GetTypeFromId(msg.id);
 	switch (type)
 	{

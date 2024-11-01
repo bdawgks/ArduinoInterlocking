@@ -21,6 +21,7 @@ class Lever
 	int _pinSwitch;
 	int _pinLED;
 	bool _ready = false;
+	unsigned long _lastChangeTime = 0;
 
 public:
 	Lever() {};
@@ -32,7 +33,7 @@ public:
 	void SetSlotState(LeverState state);
 	void SetLockState(LeverState state) { _lockState = state; }
 
-	bool IsFaulted() { return _slotState != _lockState; }
+	bool IsFaulted() { return _locked && (_slotState != _lockState); }
 	bool IsLocked() { return _locked; }
 
 	int GetPinInput() { return _pinSwitch; }

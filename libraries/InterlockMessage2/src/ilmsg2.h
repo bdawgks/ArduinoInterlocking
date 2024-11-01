@@ -110,7 +110,8 @@ class MessageSetLockState : public MessageBase
 {
 public:
 	SlotId slot = 0;
-	LockState state = LockState::On;
+	//LockState state = LockState::On;
+	LeverState state = LeverState::Normal;
 	bool locked = false;
 
 	virtual ~MessageSetLockState() {}

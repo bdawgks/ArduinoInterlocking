@@ -5,21 +5,21 @@ constexpr int SlotCount = 6;
 
 int pinsIn[SlotCount] =
 {
-	12,11,10,87
+	13,12,11,10,9,8
 };
 int pinsOut[SlotCount] =
 {
-	6,6,6,6,6,6
+	7,6,5,4,3,2
 };
 int pinsAddr[7] =
 {
-	26,27,28,29,24,25,18
+	17,18,19,20,21,22,23
 };
 
-constexpr int PinTX = 43;
-constexpr int PinRX = 44;
-
 constexpr unsigned long FlashFreq = 100;
+constexpr unsigned long SwitchMinChangeTime = 10;
+
+#define REVERSED_STATE  HIGH
 
 // Hardware setup
 hwprofile::ProfileData hwdata = hwprofile::GetProfile(hwprofile::BoardType::ArduinoESP32);
@@ -31,6 +31,7 @@ namespace Glob
 	bool indicateLocks = true;
 	auto flashPhase = LOW;
 	auto timePrev = millis();
+	bool processorStarted = false;
 } //namespace Glob
 
 // Lever member implementations
@@ -46,6 +47,11 @@ Lever::Lever(int slot, int pinSwitch, int pinLED) :
 
 void Lever::SetSlotState(LeverState state)
 {
+	if (millis() - _lastChangeTime < SwitchMinChangeTime)
+		return;
+
+	_lastChangeTime = millis();
+
 	if (state != _slotState)
 	{
 		_slotState = state;
@@ -58,7 +64,7 @@ void Lever::SetSlotState(LeverState state)
 		msg.faulted = IsFaulted();
 		ilmsg::Processor.SendMessage(msg);
 
-		if (true)
+		if (true) // TODO: find out how to check if MessageCom logging is enabled
 		{
 		  String logStr = "Lever " + String(_slot) + " state updated to " + String(state); 
 		  Log.Message(MessageCom, logStr);
@@ -79,6 +85,14 @@ void OnSetLockState(ilmsg::MessageSetLockState msg)
 	// Update the state of the locking
 	levers[slot].SetLockState((LeverState)msg.state);
 	levers[slot].SetLocked(msg.locked);
+
+	if (true) // TODO: find out how to check if MessageCom logging is enabled
+	{
+		String lockedStr = msg.locked ? "locked" : "unlocked";
+		String stateStr = (LeverState)msg.state == LeverState::Reversed ? "reversed" : "normal";
+		String logStr = "Lever " + String(slot) + " lock state updated to " + stateStr + ", " + lockedStr;
+		Log.Message(MessageCom, logStr);
+	}
 }
 
 //! Process a SetLockIndication message
@@ -89,18 +103,17 @@ void OnSetLockIndication(ilmsg::MessageSetLockIndication msg)
 
 void setup() 
 {
-  hwprofile::AssignPinData(hwdata, pinsAddr, pinsIn, pinsOut);
+	hwprofile::AssignPinData(hwdata, pinsAddr, pinsIn, pinsOut);
 
-  //Log[All] = true;
-  Log.EnableLogType(All, true);
+	Log[All] = true;
 
-  // Set up serial logging
-  if (Log.Enabled())
-  {
-    Serial.begin(9600);
-    while(!Serial);
-    Log.Message(General, "Lever Module started");
-  }
+	// Set up serial logging
+	if (Log.Enabled())
+	{
+		Serial.begin(9600);
+		while(!Serial);
+		Log.Message(General, "Lever Module started");
+	}
 
 	// Read address
 	Glob::thisAddress = ilmod::ReadBitAddress(pinsAddr);
@@ -120,22 +133,26 @@ void setup()
 	ilmsg::Processor.OnMessage(ilmsg::MessageType::SetLockIndication, new ilmsg::MessageProcessFunc<ilmsg::MessageSetLockIndication>(OnSetLockIndication));
 
 	// Start Message Processor
-	if(!ilmsg::Processor.Start(hwdata.canTxPin, hwdata.canRxPin, hwdata.canClockSpeed))
-  {
-    Log.Message(MessageCom, "CAN did not initialize");
-  }
+	Glob::processorStarted = ilmsg::Processor.Start(hwdata.canTxPin, hwdata.canRxPin, hwdata.canClockSpeed);
+	if(!Glob::processorStarted)
+	{
+		Log.Message(MessageCom, "CAN did not initialize");
+	}
 
-  if (Glob::thisAddress < 1)
-    Log.Message(General, "Module address is zero, this module will remain inactive.");
-  else
-    Log.Message(General, "Module Address: " + String(Glob::thisAddress));
+	if (Glob::thisAddress < 1)
+		Log.Message(General, "Module address is zero, this module will remain inactive.");
+	else
+		Log.Message(General, "Module Address: " + String(Glob::thisAddress));
 }
 
 void loop() 
 {
 	// If all address switches are off, disable this module
 	if (Glob::thisAddress == 0)
+	{
+		TestLoop();
 		return;
+	}
 
 	// Update the phase of LED flashing
 	auto timeNow = millis();
@@ -147,7 +164,8 @@ void loop()
 	}
 
 	// Process incomming messages
-	ilmsg::Processor.ProcessReceived();
+	if(Glob::processorStarted)
+		ilmsg::Processor.ProcessReceived();
 
 	// Update lever status
 	for (int i = 0; i < SlotCount; i++)
@@ -162,9 +180,23 @@ void loop()
 		digitalWrite(levers[i].GetPinOutput(), ledStatus);
 
 		// Update lever state
-		if (digitalRead(levers[i].GetPinInput()) == LOW)
+		if (digitalRead(levers[i].GetPinInput()) == REVERSED_STATE)
 			levers[i].SetSlotState(Reversed);
 		else
 			levers[i].SetSlotState(Normal);
 	}
+}
+
+void TestLoop()
+{
+	for (int i = 0; i < SlotCount; i++)
+	{
+		digitalWrite(pinsOut[i], HIGH);
+		if (digitalRead(pinsIn[i]) != REVERSED_STATE)
+		{
+			delay(100);
+			digitalWrite(pinsOut[i], LOW);
+		}
+	}
+	delay(500);
 }

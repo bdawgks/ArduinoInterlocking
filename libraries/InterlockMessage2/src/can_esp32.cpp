@@ -36,6 +36,9 @@ bool ESP32Controller::Start()
 
 bool ESP32Controller::Read(Message& msg)
 {
+	if (ESP32Can.inRxQueue() < 1)
+		return false;
+
 	CanFrame frame;
 	if (ESP32Can.readFrame(frame))
 	{

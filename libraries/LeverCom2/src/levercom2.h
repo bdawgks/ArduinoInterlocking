@@ -9,6 +9,7 @@
 #include <CommonLib.h>
 #include <iLock.h> 
 #include <ilmsg2.h>
+#include <algorithm>
 
 namespace levercom 
 {
@@ -28,7 +29,7 @@ using LeverState = ilock::Lever::State;
 struct LeverInfo
 {
 	LockingId lid;
-	LockState lockState;
+	//LockState lockState;
 	LeverState currentState;
 	bool leverLocked;
 };
@@ -61,12 +62,12 @@ public:
 	//! Returned bool can return false to deny change (ex: lever locked)
 	void OnStateChanged(StateChangedFunc func) { _onStateChanged = func; }
 	//! Set lock state
-	void SetLeverLockState(LockingId lid, bool locked);
+	void SetLeverLockState(LockingId lid, bool locked, bool forceUpdate = false);
 	//! Set whether lock indication is on
 	void SetLeverLockIndication(bool on);
 
 	//! Process Register message
-	void OnRegister(ilmsg::MessageRegister msg);
+	bool OnRegister(ilmsg::MessageRegister msg);
 	//! Helper callback to process SetLeverState messages
 	static void ManagerOnSetLeverState(ilmsg::MessageSetLeverState msg);
 };

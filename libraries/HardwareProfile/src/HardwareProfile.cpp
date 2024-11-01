@@ -6,7 +6,16 @@ namespace hwprofile
 ProfileData GetProfile(BoardType type)
 {
 	ProfileData data = {};
-	if (type == BoardType::ArduinoMKR)
+	if (type == BoardType::ArduinoESP32)
+	{
+		data.addressPins = { 17,18,19,20,21,22,23 };
+		data.leverPins = { 13,12,11,10,9,8 };
+		data.lockIndicatorPins = { 7,6,5,4,3,2 };
+		data.canTxPin = 43;
+		data.canRxPin = 44;
+		data.canClockSpeed = -1;
+	}
+	else if (type == BoardType::ArduinoMKR)
 	{
 		data.addressPins = { 0,0,0,0,0,0,0 };
 		data.leverPins = { 0,0,0,0,0,0 };
@@ -14,25 +23,6 @@ ProfileData GetProfile(BoardType type)
 		data.canTxPin = 7;
 		data.canRxPin = 6;
 		data.canClockSpeed = 8e6;
-	}
-	else if (type == BoardType::ArduinoESP32)
-	{
-		int NP = 255;
-		data.addressPins = { 24,23,22,21,20,19,18 };
-		data.leverPins = { 3,4,5,6,7,8 };
-		data.lockIndicatorPins = { NP,NP,NP,NP,NP,NP };
-		data.canTxPin = 43;
-		data.canRxPin = 44;
-		data.canClockSpeed = -1;
-	}
-	else if (type == BoardType::FeatherRP2040)
-	{
-		data.addressPins = { 0,0,0,0,0,0,0 };
-		data.leverPins = { 0,0,0,0,0,0 };
-		data.lockIndicatorPins = { 0,0,0,0,0,0 };
-		data.canTxPin = 19;
-		data.canRxPin = 22;
-		data.canClockSpeed = -1;
 	}
 
 	return data;

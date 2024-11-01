@@ -104,7 +104,13 @@ void Locking::UpdateLockStatus()
 	_curLockedBy.clear();
 	for (auto it = _lockingRules.begin(); it != _lockingRules.end(); it++)
 	{
-		if (it->second._lockedBy != Unlocked)
+		LockingRule lockRule = it->second._lockedBy;
+		if (lockRule == Unlocked)
+			continue;
+
+		// Check if lock rule applies to current state
+		if ((_state == LockState::On && lockRule == LockedOn) ||
+			(_state == LockState::Off && lockRule == LockedOff))
 		{
 			_isLocked = true;
 			_curLockedBy.push_back(it->first);
@@ -133,7 +139,7 @@ bool Locking::TryToggleState()
 	if (_isLocked)
 		return false;
 
-	_state = !_state;
+	_state = _state == LockState::On ? LockState::Off : LockState::On; // !_state;
 	ApplyLocks(_state);
 
 	return true;
@@ -145,6 +151,7 @@ void Locking::ApplyLocks(LockState state)
 	for (auto it = _lockingRules.begin(); it != _lockingRules.end(); it++)
 	{
 		Locking* other = _interlocking->GetLocking(it->first);
+
 		if (!other)
 			continue;
 
@@ -157,10 +164,12 @@ void Locking::ApplyLocks(LockState state)
 		if (rule == Unlocked)
 		{
 			other->WithdrawLock(_lid);
+			Serial.println("Lever " + other->GetName() + " lock withdrawn from " + GetName());
 		}
 		else
 		{
 			other->SetLock(_lid, rule);
+			Serial.println("Lever " + other->GetName() + " lock applied from " + GetName());
 		}
 	}
 }
@@ -175,10 +184,10 @@ void Locking::FinalizeLockRules()
 	_lockingFinalized = true;
 }
 
-void Lever::SetLeverState(State newState)
+bool Lever::SetLeverState(State newState)
 {
 	if (_leverState == newState)
-		return;
+		return false;
 
 	if (!IsLocked() && newState != _state)
 	{
@@ -188,6 +197,7 @@ void Lever::SetLeverState(State newState)
 	_leverState = newState;
 	_isFaulted = _leverState != _state;
 	_interlocking->SetLeverFaulted(_lid, _isFaulted);
+	return !_isFaulted && !IsLocked();
 }
 
 void Lever::ThrowLever()
@@ -209,8 +219,22 @@ Locking* Interlocking::GetLocking(LockingId id)
 	return _allLocks[id];
 }
 
+Lever* Interlocking::GetLever(LockingId id)
+{
+	if (_allLevers.find(id) == _allLevers.end())
+		return nullptr;
+
+	return _allLevers[id];
+}
+
 void Interlocking::SetLeverFaulted(LockingId lever, bool faulted)
 {
+	/*if (faulted)
+	{
+		Serial.print("lever faulted: ");
+		Serial.println(GetLocking(lever)->GetName());
+	}*/
+
 	bool currentlyFaulted = false;
 	if (_faultedLevers.find(lever) != _faultedLevers.end())
 	{
@@ -246,6 +270,7 @@ Lever* Interlocking::AddLever(String name)
 	_lockNames.insert(std::make_pair(name, _nextId));
 	Lever* lever = new Lever(_nextId, *this, name);
 	_allLocks[_nextId] = lever;
+	_allLevers[_nextId] = lever;
 
 	// Make this lever locked when the fault lock is on
 	_faultLock.AddLockRule(LockState::On, _nextId, LockedAny);

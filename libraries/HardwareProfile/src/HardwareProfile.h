@@ -12,9 +12,8 @@ namespace hwprofile
 
 enum class BoardType
 {
-	ArduinoMKR,
 	ArduinoESP32,
-	FeatherRP2040
+	ArduinoMKR
 };
 
 struct ProfileData
